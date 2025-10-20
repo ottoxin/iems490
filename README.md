@@ -232,3 +232,18 @@ docker run --rm -it \
   Ensure you’re using the provided prompts; OPRO also tracks **compliance** and down-ranks bad instructions.
 * **Data not found / format error**
   Confirm `data/movie_recommendation.json` exists and is valid JSON. The loader prints a clear error with a small snippet if the format is off.
+
+---
+
+## Results
+
+Here’s the cleaned table:
+
+| Method                         | Split / N         | OPRO config (K / Steps / Exemplars) |           Val Acc |  Test Acc | Baseline Acc (same split) | Δ vs Baseline |
+| ------------------------------ | ----------------- | ----------------------------------- | ----------------: | --------: | ------------------------: | ------------: |
+| **Baseline**                   | 250 items         | —                                   |                 — | **0.548** |                         — |             — |
+| **CoT**                        | 250 items         | —                                   |                 — | **0.584** |                     0.548 |    **+0.036** |
+| **OPRO** (smoke)               | val=20 / test=20  | K=4 / Steps=1 / Ex=8                | 0.650 (comp 1.00) | **0.650** |                     0.600 |    **+0.050** |
+| **OPRO** (paper-aligned small) | val=50 / test=200  | K=8 / Steps=1 / Ex=3                | 0.620 (comp 1.00) | **0.620** |                     0.540 |    **+0.080** |
+| **OPRO** (larger test)         | val≈50 / test=200 | K=8 / Steps=2                     | 0.700 (comp 1.00) | **0.710** |                     0.535 |    **+0.175** |
+
