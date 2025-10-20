@@ -17,7 +17,6 @@ It includes:
 movie-rec-bbh/
 ├─ README.md
 ├─ requirements.txt
-├─ .gitignore
 │
 ├─ data/
 │  └─ movie_recommendation.json      
@@ -106,7 +105,7 @@ Wrote: outputs/baseline_10_qwen.json
 
 ---
 
-### 2) CoT (from a small sample test)
+### 2) CoT (fro a small sample test)
 
 ```bash
 python src/run_manual.py data/movie_recommendation.json outputs/manual_cot_2.json prompts/cot_silent_movie_rec.txt 2
@@ -202,36 +201,93 @@ Favor strongest genre alignment; then closest time period; then comparable mood;
 
 ---
 
+Absolutely—here’s a **ready-to-paste “Docker usage” section** for your README, plus where I’d place it.
+
+## Where to put it
+
+Add this **right after your “Usage” section** and before “Reproducibility/Troubleshooting.” That way readers first see local runs, then the containerized alternative.
+
+---
+
 ## Docker
 
-If you want a containerized run, build your own image and mount outputs:
+The provided `Dockerfile` builds a slim image with all deps and your project files. You’ll pass API keys at runtime and mount `outputs/` so results persist on your host.
+
+> **Do not** hardcode real API keys in README or scripts. Use environment variables.
+
+### Optional: clone fresh
 
 ```bash
-docker build -t movie-rec-bbh .
+git clone https://github.com/ottoxin/iems490.git
+cd iems490
+```
+
+### Build image
+
+```bash
+docker build -t iems490 .
+```
+
+### Baseline (small sample test)
+
+Mount `outputs/` so files land on your machine; pass your DashScope key as an env var.
+
+```bash
 docker run --rm -it \
-  -e DASHSCOPE_API_KEY=$DASHSCOPE_API_KEY \
-  -e DASHSCOPE_MODEL=qwen-flash \
+  -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
+  -e DASHSCOPE_MODEL="qwen-flash" \
   -v "$PWD/outputs:/app/outputs" \
-  movie-rec-bbh bash -lc \
+  iems490 bash -lc \
+  "python src/run_baseline.py data/movie_recommendation.json outputs/baseline_2.json prompts/baseline_movie_rec.txt 2"
+```
+
+### CoT (Chain of Thought on small sample)
+
+```bash
+docker run --rm -it \
+  -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
+  -e DASHSCOPE_MODEL="qwen-flash" \
+  -v "$PWD/outputs:/app/outputs" \
+  iems490 bash -lc \
+  "python src/run_manual.py data/movie_recommendation.json \
+     outputs/manual_cot_2.json \
+     prompts/cot_silent_movie_rec.txt \
+     2"
+```
+
+### OPRO (small sample test)
+
+Quick end-to-end check with a very small split; prints results and writes minimal artifacts.
+
+```bash
+docker run --rm -it \
+  -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
+  -e DASHSCOPE_MODEL="qwen-flash" \
+  -v "$PWD/outputs:/app/outputs" \
+  iems490 bash -lc \
+  "python src/run_auto.py --data data/movie_recommendation.json --outdir outputs/auto \
+   --K 8 --steps 1 --val-size 5 --test-size 5 --exemplars 3 --seed 42 \
+   --optimizer-temp 1.0 --save minimal"
+```
+
+### OPRO
+
+Uses ~20% validation, 80% test (for 250 items: 50/200), `K=8`, one step—matching the OPRO paper defaults.
+
+```bash
+docker run --rm -it \
+  -e DASHSCOPE_API_KEY="$DASHSCOPE_API_KEY" \
+  -e DASHSCOPE_MODEL="qwen-flash" \
+  -v "$PWD/outputs:/app/outputs" \
+  iems490 bash -lc \
   "python src/run_auto.py --data data/movie_recommendation.json --outdir outputs/auto \
    --K 8 --steps 1 --val-size 50 --test-size 200 --exemplars 3 --seed 42 \
    --optimizer-temp 1.0 --save minimal"
 ```
 
-(Your Dockerfile should **not** download data; instead you should pull from `data/movie_recommendation.json`.)
+**Notes**
 
----
-
-## Troubleshooting
-
-* **`RuntimeError: No API key configured`**
-  Export `DASHSCOPE_API_KEY` (or another supported key).
-* **Module import errors**
-  Run commands from the **repo root** (the folder containing `src/`, `prompts/`, `data/`).
-* **Model outputs more than `(A–E)`**
-  Ensure you’re using the provided prompts; OPRO also tracks **compliance** and down-ranks bad instructions.
-* **Data not found / format error**
-  Confirm `data/movie_recommendation.json` exists and is valid JSON. The loader prints a clear error with a small snippet if the format is off.
+* The `Dockerfile` copies `data/movie_recommendation.json` into the image; if you update the dataset, rebuild the image or bind-mount `data/` as well.
 
 ---
 
@@ -245,4 +301,18 @@ Here’s the cleaned table:
 | **CoT**                        | 250 items         | —                                   |                 — | **0.584** |                     0.548 |    **+0.036** |
 | **OPRO** (paper-aligned small) | val=50 / test=200  | K=8 / Steps=1 / Ex=3                | 0.660 (comp 1.00) | **0.660** |                     0.530 |    **+0.130** |
 | **OPRO** (larger test)         | val≈50 / test=200 | K=8 / Steps=2 / Ex=3                     | 0.700 (comp 1.00) | **0.710** |                     0.535 |    **+0.175** |
+
+---
+
+## Troubleshooting
+
+* **`RuntimeError: No API key configured`**
+  Export `DASHSCOPE_API_KEY` (or another supported key).
+* **Module import errors**
+  Run commands from the **repo root** (the folder containing `src/`, `prompts/`, `data/`).
+* **Model outputs more than `(A–E)`**
+  Ensure you’re using the provided prompts; OPRO also tracks **compliance** and down-ranks bad instructions.
+* **Data not found / format error**
+  Confirm `data/movie_recommendation.json` exists and is valid JSON. The loader prints a clear error with a small snippet if the format is off.
+---
 
