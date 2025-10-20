@@ -88,21 +88,41 @@ The loader handles the BBH file format and maps any title-style gold answers (e.
 
 ---
 
-## Running (no `-m` used)
+## Usage
 
-### 1) Baseline (quick 2-item smoke test)
+### 1) Baseline (from a small sample test)
 
 ```bash
 python src/run_baseline.py data/movie_recommendation.json outputs/baseline_2.json prompts/baseline_movie_rec.txt 2
 ```
 
-### 2) CoT (silent) — quick 2-item test
+**Example output:**
 
-```bash
-python src/run_manual.py  data/movie_recommendation.json outputs/manual_cot_2.json prompts/cot_silent_movie_rec.txt 2
+```
+Baseline: 100%|██████████████████████████████████████████████████████| 10/10 [00:09<00:00, 1.02it/s]
+Baseline accuracy: 0.600  (N=10)
+Wrote: outputs/baseline_10_qwen.json
 ```
 
-### 3) OPRO (paper-aligned)
+---
+
+### 2) CoT (from a small sample test)
+
+```bash
+python src/run_manual.py data/movie_recommendation.json outputs/manual_cot_2.json prompts/cot_silent_movie_rec.txt 2
+```
+
+**Example output:**
+
+```
+CoT (silent): 100%|██████████████████████████████████████████████████| 10/10 [00:09<00:00, 1.06it/s]
+CoT accuracy: 0.700  (N=10)
+Wrote: outputs/manual_cot_10.json
+```
+
+---
+
+### 3) OPRO 
 
 OPRO searches short **instructions** (3–5 rules) to append to the baseline prompt.
 
@@ -113,7 +133,7 @@ For a 250-item set:
 * **Test** (final): 200 items
 * **Exemplars per step** (shown to the optimizer): 3
 * **Candidates per step (K)**: 8
-* **Steps**: 1 (stop when max steps reached or no improvement)
+* **Steps**: 1 iteration
 
 Run:
 
@@ -148,23 +168,28 @@ If `--save minimal`, files written:
 
 (Use `--save full` to also dump meta-prompts, candidates, and validation score CSVs; `--save none` prints only.)
 
----
+**Example output (OPRO smoke test with tiny split; no files saved):**
 
-## Output contract
+```bash
+python src/run_auto.py \
+  --data data/movie_recommendation.json \
+  --outdir outputs/auto_debug \
+  --K 4 --steps 1 \
+  --val-size 20 --test-size 20 --exemplars 3 \
+  --seed 123 \
+  --save none
+```
 
-All solvers must return **only one letter** in parentheses `(A–E)`.
-Parsers are strict; compliance is tracked during OPRO ranking.
+```
+=== OPRO summary ===
+Baseline (test) acc = 0.600
+Best rubric (val) acc = 0.650 | comp = 1.000
+OPRO (test) acc = 0.650 | comp = 1.000
+Δ vs Baseline (test) = +0.050
 
----
-
-## How OPRO is used here (paper terms)
-
-* **Instruction**: a one-line rubric (3–5 short rules) appended to the baseline prompt.
-* **Optimization step** (`--steps`): the optimizer LLM proposes **K** candidate **instructions**, we score them on **validation**, then (optionally) feed back the best history (up to 20) into the next step.
-* **K** (`--K`): **number of candidate instructions per step** (paper uses 8).
-* **Optimizer temperature**: **1.0** (diversity, paper default); solver stays at 0.0 (deterministic).
-* **Scoring / value function**: accuracy on the validation split (with a compliance metric).
-* **Selection**: rank instructions by accuracy → compliance → brevity → lexicographic.
+Best rubric:
+Favor strongest genre alignment; then closest time period; then comparable mood; prefer widely recognized titles
+```
 
 ---
 
