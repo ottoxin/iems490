@@ -14,7 +14,7 @@ It includes:
 ## Repo layout
 
 ```
-movie-rec-bbh/
+iems490/
 ├─ README.md
 ├─ requirements.txt
 │
@@ -105,7 +105,7 @@ Wrote: outputs/baseline_10_qwen.json
 
 ---
 
-### 2) CoT (fro a small sample test)
+### 2) CoT (from a small sample test)
 
 ```bash
 python src/run_manual.py data/movie_recommendation.json outputs/manual_cot_2.json prompts/cot_silent_movie_rec.txt 2
