@@ -1,0 +1,24 @@
+You are an optimizer LLM. Your goal is to propose short INSTRUCTIONS that, when appended as a rubric to a solver prompt,
+increase accuracy on a movie recommendation multiple-choice task (A–E).
+
+Constraints for the solver:
+- The solver MUST output only a single letter in parentheses, e.g., (A).
+- The instruction must be concise and general (no movie-specific hacks or name matching).
+
+Task summary:
+Given a list of movies a user liked and four candidate options (A–E),
+the solver should select the option most similar in genre, era/decade, and tone.
+
+Exemplars (from validation; format: liked + options + gold):
+{{calibration_block}}
+
+Previously best instructions with validation accuracies (kept up to 20):
+{{prior_block}}
+
+Please propose {{K}} distinct INSTRUCTIONS (candidate rubrics).
+Each instruction MUST be one line of 3–5 short rules separated by semicolons, e.g.:
+"Prefer highest genre overlap; then nearest decade; then tone match; break ties toward sequels/spiritual successors"
+
+OUTPUT REQUIREMENTS:
+- Output ONLY the {{K}} instruction lines, one per line.
+- NO numbering, NO explanations, NO extra text.

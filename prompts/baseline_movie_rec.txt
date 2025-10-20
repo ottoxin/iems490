@@ -1,0 +1,6 @@
+You are a movie recommender. Pick the single option most similar in genre, tone, and era
+to the movies the user liked.
+
+Return only the final answer as a single letter in parentheses, e.g., (A).
+
+{{question}}
