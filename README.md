@@ -1,1 +1,209 @@
-# iems490
+# IEMS Assignment 1: Movie Recommendation (BBH) — Baselines, CoT, and OPRO
+
+This repo evaluates a multiple-choice **movie recommendation** task from BIG-Bench Hard (BBH).
+Given movies a user liked and four options (A–E), the model must output **only a single letter** like `(C)`.
+
+It includes:
+
+* **Baseline** (zero-shot)
+* **CoT (silent)** — think internally, still output `(A–E)`
+* **OPRO (paper-aligned)** — automated prompt engineering (“Optimization by PROmpting”), which searches short **instructions** to append to the baseline prompt and improves accuracy on a held-out test split.
+
+---
+
+## Repo layout
+
+```
+movie-rec-bbh/
+├─ README.md
+├─ requirements.txt
+├─ .gitignore
+│
+├─ data/
+│  └─ movie_recommendation.json      
+│
+├─ prompts/
+│  ├─ baseline_movie_rec.txt         # Baseline prompt (must output only (A–E))
+│  ├─ cot_silent_movie_rec.txt       # CoT prompt
+│  └─ opro_generate.txt              # OPRO optimizer meta-prompt
+│
+└─ src/
+   ├─ __init__.py
+   ├─ model_api.py                   # OpenAI-compatible client; Qwen (DashScope) preferred
+   ├─ load_bbh_movie_rec.py          # Robust loader; title→letter mapping
+   ├─ run_baseline.py                # Baseline runner
+   ├─ run_manual.py                  # CoT runner
+   ├─ auto_search.py                 # OPRO utilities
+   └─ run_auto.py                    # OPRO driver with progress output
+```
+
+---
+
+## Requirements
+
+```
+python 3.11+
+requests==2.32.3
+tqdm==4.66.5
+pandas==2.2.3
+```
+
+Install:
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+---
+
+## Model & environment
+
+This repo calls an **OpenAI-compatible** `/chat/completions` API.
+
+Preferred: **Qwen-Flash** via DashScope (Alibaba Model Studio)
+
+```bash
+export DASHSCOPE_API_KEY=sk-...        # required
+export DASHSCOPE_MODEL=qwen-flash      # default is qwen-flash
+# optional region/base:
+# export DASHSCOPE_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+Fallbacks (optional):
+
+* Kimi (Moonshot): `MOONSHOT_API_KEY`, `MOONSHOT_MODEL`
+* OpenAI-compatible: `OPENAI_API_KEY`, `OPENAI_MODEL`
+
+If no key is set, the code **raises** with a clear error (no dummy predictions).
+
+---
+
+## Data
+
+Place **`data/movie_recommendation.json`** in the repo (committed).
+The loader handles the BBH file format and maps any title-style gold answers (e.g., `Monsters, Inc`) to the correct option letter.
+
+> **Note:** The full dataset contains **250** items.
+
+---
+
+## Running (no `-m` used)
+
+### 1) Baseline (quick 2-item smoke test)
+
+```bash
+python src/run_baseline.py data/movie_recommendation.json outputs/baseline_2.json prompts/baseline_movie_rec.txt 2
+```
+
+### 2) CoT (silent) — quick 2-item test
+
+```bash
+python src/run_manual.py  data/movie_recommendation.json outputs/manual_cot_2.json prompts/cot_silent_movie_rec.txt 2
+```
+
+### 3) OPRO (paper-aligned)
+
+OPRO searches short **instructions** (3–5 rules) to append to the baseline prompt.
+
+**Paper guidance:** use ≈**20%** of BBH for tuning, **80%** for testing.
+For a 250-item set:
+
+* **Validation** (tuning): 50 items
+* **Test** (final): 200 items
+* **Exemplars per step** (shown to the optimizer): 3
+* **Candidates per step (K)**: 8
+* **Steps**: 1 (stop when max steps reached or no improvement)
+
+Run:
+
+```bash
+python src/run_auto.py \
+  --data data/movie_recommendation.json \
+  --outdir outputs/auto \
+  --K 8 --steps 1 \
+  --val-size 50 --test-size 200 --exemplars 3 \
+  --seed 42 \
+  --optimizer-temp 1.0 \
+  --save minimal
+```
+
+What you’ll see:
+
+* Progress for baseline scoring, candidate generation, and validation scoring
+* A small leaderboard of top instructions per step
+* Final summary with:
+
+  * **Baseline (test) accuracy**
+  * **Best instruction (val) accuracy**
+  * **OPRO (test) accuracy**
+  * **Δ vs Baseline (test)**
+  * The **best instruction** (single line)
+
+If `--save minimal`, files written:
+
+* `outputs/auto/best_instruction.txt`
+* `outputs/auto/summary.txt`
+* `outputs/auto/test_preds.json`
+
+(Use `--save full` to also dump meta-prompts, candidates, and validation score CSVs; `--save none` prints only.)
+
+---
+
+## Output contract
+
+All solvers must return **only one letter** in parentheses `(A–E)`.
+Parsers are strict; compliance is tracked during OPRO ranking.
+
+---
+
+## How OPRO is used here (paper terms)
+
+* **Instruction**: a one-line rubric (3–5 short rules) appended to the baseline prompt.
+* **Optimization step** (`--steps`): the optimizer LLM proposes **K** candidate **instructions**, we score them on **validation**, then (optionally) feed back the best history (up to 20) into the next step.
+* **K** (`--K`): **number of candidate instructions per step** (paper uses 8).
+* **Optimizer temperature**: **1.0** (diversity, paper default); solver stays at 0.0 (deterministic).
+* **Scoring / value function**: accuracy on the validation split (with a compliance metric).
+* **Selection**: rank instructions by accuracy → compliance → brevity → lexicographic.
+
+---
+
+## Reproducibility
+
+* Fixed random seed for splits and exemplar selection (`--seed`).
+* Paper-aligned defaults (`K=8`, `steps=1`, `exemplars=3`, optimizer temp=1.0).
+* Optional artifacts: meta-prompts, candidate lists, validation score tables.
+* Progress printing shows step sizes, provider/model, and compact per-instruction stats.
+
+---
+
+## Docker
+
+If you want a containerized run, build your own image and mount outputs:
+
+```bash
+docker build -t movie-rec-bbh .
+docker run --rm -it \
+  -e DASHSCOPE_API_KEY=$DASHSCOPE_API_KEY \
+  -e DASHSCOPE_MODEL=qwen-flash \
+  -v "$PWD/outputs:/app/outputs" \
+  movie-rec-bbh bash -lc \
+  "python src/run_auto.py --data data/movie_recommendation.json --outdir outputs/auto \
+   --K 8 --steps 1 --val-size 50 --test-size 200 --exemplars 3 --seed 42 \
+   --optimizer-temp 1.0 --save minimal"
+```
+
+(Your Dockerfile should **not** download data; instead you should pull from `data/movie_recommendation.json`.)
+
+---
+
+## Troubleshooting
+
+* **`RuntimeError: No API key configured`**
+  Export `DASHSCOPE_API_KEY` (or another supported key).
+* **Module import errors**
+  Run commands from the **repo root** (the folder containing `src/`, `prompts/`, `data/`).
+* **Model outputs more than `(A–E)`**
+  Ensure you’re using the provided prompts; OPRO also tracks **compliance** and down-ranks bad instructions.
+* **Data not found / format error**
+  Confirm `data/movie_recommendation.json` exists and is valid JSON. The loader prints a clear error with a small snippet if the format is off.
